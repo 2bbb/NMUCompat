@@ -3,7 +3,8 @@
 Derived from static analysis of `NMU.app` 1.85 (x86_64 Mach-O, symbols intact) and
 the public ESP v1.4 spec. Discovery and the poll-reply layout are **verified on a real
 ODE Mk1** (MAC 00:50:C2:07:77:B1, firmware 0x16, Art-Net 1.06 in ArtPollReply).
-`ESCP` (name change) is also **verified on hardware**; IP change and `ESZZ` alone are not yet
+`ESCP` name and Art-Net universe changes are also **verified on hardware** (universe 0.0→0.1→0.0,
+cross-checked against the node's ArtPollReply `SwOut`); IP change and `ESZZ` alone are not yet
 — items marked _(unverified)_.
 
 Relevant NMU functions: `ESPNet::Poll`, `ESPNet::ODEPoll`, `ESPNet::RecvData`,
