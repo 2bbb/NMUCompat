@@ -19,14 +19,15 @@ if [[ "${UNIVERSAL:-0}" == "1" ]]; then
     ARCH_FLAGS=(--arch arm64 --arch x86_64)
 fi
 
-swift build -c release "${ARCH_FLAGS[@]}" --product NMUCompatApp
-swift build -c release "${ARCH_FLAGS[@]}" --product nmucompat
-BIN_DIR="$(swift build -c release "${ARCH_FLAGS[@]}" --show-bin-path)"
+swift build -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --product NMUCompatApp
+swift build -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --product nmucompat
+BIN_DIR="$(swift build -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)"
 
 rm -rf "$APP" "$DIST/nmucompat"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/NMUCompatApp" "$APP/Contents/MacOS/NMUCompat"
 cp "$BIN_DIR/nmucompat" "$DIST/nmucompat"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -38,6 +39,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleIdentifier</key><string>com.github.2bbb.nmucompat</string>
   <key>CFBundleExecutable</key><string>NMUCompat</string>
   <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleShortVersionString</key><string>${BUNDLE_VERSION}</string>
   <key>CFBundleVersion</key><string>${VERSION}</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
