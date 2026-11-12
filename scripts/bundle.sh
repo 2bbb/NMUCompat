@@ -48,25 +48,25 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-codesign --force --sign - "$APP"
-codesign --force --sign - "$DIST/nmucompat"
+# Ad-hoc by default. Release automation sets SIGN_IDENTITY to the Developer ID identity;
+# then Hardened Runtime + secure timestamp are required for notarization.
+SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+if [[ "$SIGN_IDENTITY" == "-" ]]; then
+    SIGN_ARGS=(--force --sign -)
+else
+    SIGN_ARGS=(--force --options runtime --timestamp --sign "$SIGN_IDENTITY")
+fi
+# Inside-out: the CLI is standalone; the app has a single executable and no nested code.
+codesign "${SIGN_ARGS[@]}" "$DIST/nmucompat"
+codesign "${SIGN_ARGS[@]}" "$APP"
+codesign --verify --deep --strict --verbose=2 "$APP"
+codesign --verify --strict --verbose=2 "$DIST/nmucompat"
 
 lipo -info "$APP/Contents/MacOS/NMUCompat"
 lipo -info "$DIST/nmucompat"
 
 if [[ "${ZIP:-0}" == "1" ]]; then
-    SUFFIX=$([[ "${UNIVERSAL:-0}" == "1" ]] && echo universal || uname -m)
-    NAME="NMUCompat-${ZIP_LABEL:-$VERSION}-macos-${SUFFIX}"
-    STAGE="$DIST/$NAME"
-    rm -rf "$STAGE" "$DIST/$NAME.zip"
-    mkdir -p "$STAGE"
-    cp -R "$APP" "$STAGE/"
-    cp "$DIST/nmucompat" "$STAGE/"
-    cp README.md LICENSE "$STAGE/"
-    # ditto keeps the code signature and bundle metadata intact.
-    (cd "$DIST" && ditto -c -k --keepParent "$NAME" "$NAME.zip")
-    rm -rf "$STAGE"
-    echo "zip: $DIST/$NAME.zip"
+    "$(dirname "$0")/package.sh"
 fi
 
 echo "built $APP and $DIST/nmucompat"
