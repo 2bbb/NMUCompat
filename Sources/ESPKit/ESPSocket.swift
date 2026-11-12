@@ -54,7 +54,9 @@ public enum ESPSocketError: Error, CustomStringConvertible {
 
 /// UDP socket on port 3333 that broadcasts to 255.255.255.255, optionally pinned to one interface.
 public final class ESPSocket {
-    private let fd: Int32
+    /// Sends from :3333 (like NMU). ODEs answer to 255.255.255.255:3330, so replies arrive on `rx`.
+    private let tx: Int32
+    private let rx: Int32
     public let interface: NetworkInterface?
 
     public init(interfaceName: String? = nil) throws {
@@ -67,7 +69,17 @@ public final class ESPSocket {
             interface = nil
         }
 
-        fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+        tx = try ESPSocket.makeSocket(port: ESP.port, interface: interface)
+        do {
+            rx = try ESPSocket.makeSocket(port: ESP.replyPort, interface: interface)
+        } catch {
+            close(tx)
+            throw error
+        }
+    }
+
+    private static func makeSocket(port: UInt16, interface: NetworkInterface?) throws -> Int32 {
+        let fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
         guard fd >= 0 else { throw ESPSocketError.system("socket", errno) }
 
         var one: Int32 = 1
@@ -88,15 +100,19 @@ public final class ESPSocket {
         var addr = sockaddr_in()
         addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = ESP.port.bigEndian
+        addr.sin_port = port.bigEndian
         addr.sin_addr.s_addr = INADDR_ANY
         let rc = withUnsafePointer(to: &addr) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
         }
-        guard rc == 0 else { let e = errno; close(fd); throw ESPSocketError.system("bind :3333", e) }
+        guard rc == 0 else { let e = errno; close(fd); throw ESPSocketError.system("bind :\(port)", e) }
+        return fd
     }
 
-    deinit { close(fd) }
+    deinit {
+        close(tx)
+        close(rx)
+    }
 
     public func broadcast(_ packet: [UInt8]) throws {
         try send(packet, to: IPv4Address([255, 255, 255, 255]))
@@ -112,7 +128,7 @@ public final class ESPSocket {
         let n = packet.withUnsafeBytes { buf in
             withUnsafePointer(to: &addr) {
                 $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    sendto(fd, buf.baseAddress, buf.count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+                    sendto(tx, buf.baseAddress, buf.count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
                 }
             }
         }
@@ -126,14 +142,14 @@ public final class ESPSocket {
         while true {
             let remaining = deadline.timeIntervalSinceNow
             if remaining <= 0 { return }
-            var pfd = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+            var pfd = pollfd(fd: rx, events: Int16(POLLIN), revents: 0)
             let r = Darwin.poll(&pfd, 1, Int32(remaining * 1000))
             if r <= 0 { if r < 0 && errno == EINTR { continue }; return }
             var from = sockaddr_in()
             var len = socklen_t(MemoryLayout<sockaddr_in>.size)
             let n = buf.withUnsafeMutableBytes { b in
                 withUnsafeMutablePointer(to: &from) {
-                    $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { recvfrom(fd, b.baseAddress, b.count, 0, $0, &len) }
+                    $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { recvfrom(rx, b.baseAddress, b.count, 0, $0, &len) }
                 }
             }
             if n <= 0 { continue }

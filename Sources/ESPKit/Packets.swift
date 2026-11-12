@@ -3,7 +3,10 @@ import Foundation
 /// ESP (ENTTEC Show Protocol) packet definitions for ODE Mk1 configuration.
 /// See docs/PROTOCOL.md for the byte layouts and their provenance.
 public enum ESP {
+    /// Destination port for everything the host sends.
     public static let port: UInt16 = 3333
+    /// ODEs broadcast their replies (ESPR) to this port, not to 3333.
+    public static let replyPort: UInt16 = 3330
     public static let odeNodeType: UInt16 = 0x000B
     /// Firmware version from which the extended (45 byte) ESCP layout is used.
     public static let extendedConfigFirmware: UInt8 = 0x18

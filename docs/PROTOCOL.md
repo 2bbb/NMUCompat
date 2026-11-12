@@ -1,8 +1,9 @@
 # ENTTEC ODE Mk1 — ESP configuration protocol (as implemented by NMU 1.85)
 
 Derived from static analysis of `NMU.app` 1.85 (x86_64 Mach-O, symbols intact) and
-the public ESP v1.4 spec. **Not yet verified on hardware** — items marked _(unverified)_
-need a capture from a real ODE Mk1.
+the public ESP v1.4 spec. Discovery and the poll-reply layout are **verified on a real
+ODE Mk1** (MAC 00:50:C2:07:77:B1, firmware 0x16, Art-Net 1.06 in ArtPollReply).
+Writes (`ESCP`, `ESZZ`) are not yet verified — items marked _(unverified)_.
 
 Relevant NMU functions: `ESPNet::Poll`, `ESPNet::ODEPoll`, `ESPNet::RecvData`,
 `ESPNet::add_ode_to_list(…, ODEPollReplyPacket*)`, `ESPNet::ODE_SendConfig`,
@@ -11,9 +12,11 @@ Relevant NMU functions: `ESPNet::Poll`, `ESPNet::ODEPoll`, `ESPNet::RecvData`,
 
 ## Transport
 
-- UDP, port **3333** (0x0D05), both source and destination.
-- NMU binds two UDP sockets to `0.0.0.0:3333` and sends every packet to
-  `255.255.255.255:3333`. Nodes are addressed by **MAC**, not IP, so this works even when
+- Host → node: UDP to port **3333** (0x0D05). NMU sends from source port 3333.
+- Node → host: the ODE **broadcasts its replies to `255.255.255.255:3330`** (0x0D02),
+  regardless of the poll's source port. A client listening only on 3333 sees nothing.
+  (Verified by capture; matches NMU's second socket bound to `0.0.0.0:3330`.)
+- NMU sends every packet to `255.255.255.255:3333`. Nodes are addressed by **MAC**, not IP, so this works even when
   the node's IP is on another subnet (factory IP is `10.a.b.c`).
 - Multi-byte integers are big-endian.
 
@@ -23,6 +26,10 @@ Relevant NMU functions: `ESPNet::Poll`, `ESPNet::ODEPoll`, `ESPNet::RecvData`,
 |----:|-----:|-------|
 | 0 | 4 | `"ESPP"` |
 | 4 | 1 | reply type: NMU discovery sends `0x01`; `ODEPoll(ip)` sends `0x04` unicast |
+
+Observed on ODE Mk1 fw 0x16: types `0x01` and `0x04` both get the same 83-byte reply
+(unicast, subnet-broadcast and limited-broadcast polls all answered); types `0x00` and
+`0x02` get no reply.
 
 ## Poll reply from ODE — `ESPR` (`ODEPollReplyPacket`)
 
@@ -52,6 +59,17 @@ Relevant NMU functions: `ESPNet::Poll`, `ESPNet::ODEPoll`, `ESPNet::RecvData`,
 
 The node's current IP is the UDP source address of the reply.
 
+Captured reply (fw 0x16, name "Kyakuden", output, Art-Net, universe 0):
+
+```
+0000  45 53 50 52 00 50 c2 07 77 b1 00 0b 16 00 4b 79
+0010  61 6b 75 64 65 6e 00 a0 01 00 00 4b 79 61 6b 75
+0020  64 65 6e 00 00 00 00 00 00 00 00 00 00 00 00 01
+0030  01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ff
+0040  ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 00
+0050  00 00 00
+```
+
 ## Set config — `ESCP`
 
 Sent to broadcast; the node selects itself by MAC.
@@ -78,7 +96,8 @@ Refresh-rate code from Hz (`Config_Dialog::UpdateDevice`):
 `code = floor((1000/max(hz,2) - 23) / 2.052 + 0.5)`.
 
 Factory reset (`SendFactoryConfig`) is the same packet with IP `10.MAC[3].MAC[4].MAC[5]`
-(hex bytes parsed), name `"ODE Factory"`, direction 1, protocol 1, universe 0, format 1, length 0x18.
+(NMU runs `strtol(…,16)` over raw MAC bytes here, which looks like a bug; nmucompat uses the
+byte values, matching the manual's "10.a.b.c from the serial"), name `"ODE Factory"`, direction 1, protocol 1, universe 0, format 1, length 0x18.
 
 ## Reset / apply — `ESZZ`
 
