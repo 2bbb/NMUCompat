@@ -1,0 +1,79 @@
+name: Release
+
+# main  → rolling "latest" pre-release (NMUCompat-latest-macos-universal.zip)
+# v*    → versioned release        (NMUCompat-<version>-macos-universal.zip)
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: v
+        run: |
+          sha="$(git rev-parse --short HEAD)"
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+            echo "bundle_version=${version%%[-+]*}" >> "$GITHUB_OUTPUT"
+            echo "zip_label=$version" >> "$GITHUB_OUTPUT"
+            echo "channel=tag" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.0.0-latest+$sha" >> "$GITHUB_OUTPUT"
+            echo "bundle_version=0.0.0" >> "$GITHUB_OUTPUT"
+            echo "zip_label=latest" >> "$GITHUB_OUTPUT"
+            echo "channel=latest" >> "$GITHUB_OUTPUT"
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: swift test
+
+      - name: Build universal app + CLI
+        env:
+          UNIVERSAL: "1"
+          ZIP: "1"
+          VERSION: ${{ steps.v.outputs.version }}
+          BUNDLE_VERSION: ${{ steps.v.outputs.bundle_version }}
+          ZIP_LABEL: ${{ steps.v.outputs.zip_label }}
+        run: ./scripts/bundle.sh
+
+      - name: Publish versioned release
+        if: steps.v.outputs.channel == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/NMUCompat-*-macos-universal.zip \
+            --verify-tag --title "NMUCompat $GITHUB_REF_NAME" --generate-notes
+
+      - name: Publish rolling "latest" pre-release
+        if: steps.v.outputs.channel == 'latest'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.v.outputs.sha }}
+        run: |
+          git tag -f latest "$GITHUB_SHA"
+          git push -f origin refs/tags/latest
+          notes="Automated build of main at ${SHA}. Untested pre-release — use a versioned release for production."
+          if gh release view latest >/dev/null 2>&1; then
+            gh release upload latest dist/NMUCompat-latest-macos-universal.zip --clobber
+            gh release edit latest --prerelease --title "Latest (main @ ${SHA})" --notes "$notes"
+          else
+            gh release create latest dist/NMUCompat-latest-macos-universal.zip \
+              --prerelease --title "Latest (main @ ${SHA})" --notes "$notes"
+          fi

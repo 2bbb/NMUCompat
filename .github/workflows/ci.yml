@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: swift --version
+
+      - name: Build (debug)
+        run: swift build
+
+      - name: Unit tests (packet layouts, parsing)
+        run: swift test
+
+      - name: Universal release bundle
+        run: UNIVERSAL=1 ./scripts/bundle.sh
+
+      - name: Check both architectures are present
+        run: |
+          for bin in dist/NMUCompat.app/Contents/MacOS/NMUCompat dist/nmucompat; do
+            archs="$(lipo -archs "$bin")"
+            echo "$bin: $archs"
+            [[ "$archs" == *arm64* && "$archs" == *x86_64* ]]
+          done
+
+      - name: Verify code signature
+        run: |
+          codesign --verify --deep --strict dist/NMUCompat.app
+          codesign --verify --strict dist/nmucompat
+
+      - name: CLI smoke test
+        run: |
+          dist/nmucompat --help
+          dist/nmucompat interfaces
+          # Binds :3333/:3330 and broadcasts a poll; no ODE on the runner, so expect an empty result.
+          dist/nmucompat discover -t 1
+          # Argument validation must fail cleanly.
+          if dist/nmucompat set 00:00:00:00:00:00 --ip 999.1.1.1 --dry-run -t 0.5; then exit 1; fi

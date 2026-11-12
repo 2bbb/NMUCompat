@@ -2,9 +2,9 @@
 
 Derived from static analysis of `NMU.app` 1.85 (x86_64 Mach-O, symbols intact) and
 the public ESP v1.4 spec. Discovery and the poll-reply layout are **verified on a real
-ODE Mk1** (MAC 00:50:C2:07:77:B1, firmware 0x16, Art-Net 1.06 in ArtPollReply).
+ODE Mk1** (firmware 0x16, Art-Net 1.06 in ArtPollReply).
 `ESCP` name, Art-Net universe and IP changes are also **verified on hardware** (universe
-0.0→0.1→0.0 cross-checked against ArtPollReply `SwOut`; IP 10.0.1.102→10.0.1.250→10.0.1.102
+0.0→0.1→0.0 cross-checked against ArtPollReply `SwOut`; IP A→B→A
 via `ESCP` + `ESZZ`). Items marked _(unverified)_ remain open.
 
 Relevant NMU functions: `ESPNet::Poll`, `ESPNet::ODEPoll`, `ESPNet::RecvData`,
@@ -66,12 +66,13 @@ Observed on ODE Mk1 fw 0x16: types `0x01` and `0x04` both get the same 83-byte r
 
 The node's current IP is the UDP source address of the reply.
 
-Captured reply (fw 0x16, name "Kyakuden", output, Art-Net, universe 0):
+Captured reply (fw 0x16, output, Art-Net, universe 0; MAC and name replaced with
+`00:50:C2:12:34:56` / `"Stage-01"`):
 
 ```
-0000  45 53 50 52 00 50 c2 07 77 b1 00 0b 16 00 4b 79
-0010  61 6b 75 64 65 6e 00 a0 01 00 00 4b 79 61 6b 75
-0020  64 65 6e 00 00 00 00 00 00 00 00 00 00 00 00 01
+0000  45 53 50 52 00 50 c2 12 34 56 00 0b 16 00 53 74
+0010  61 67 65 2d 30 31 00 a0 01 00 00 53 74 61 67 65
+0020  2d 30 31 00 00 00 00 00 00 00 00 00 00 00 00 01
 0030  01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ff
 0040  ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 00
 0050  00 00 00

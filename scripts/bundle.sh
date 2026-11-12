@@ -1,17 +1,32 @@
 #!/bin/bash
-# Builds NMUCompat.app (release, ad-hoc signed) into ./dist.
+# Builds NMUCompat.app and the nmucompat CLI (release, ad-hoc signed) into ./dist.
+#
+#   scripts/bundle.sh                 # host architecture only
+#   UNIVERSAL=1 scripts/bundle.sh     # arm64 + x86_64
+#   VERSION=1.2.3 ZIP=1 UNIVERSAL=1 scripts/bundle.sh
+#       → dist/NMUCompat-1.2.3-macos-universal.zip (app + CLI + README + LICENSE)
+#   ZIP_LABEL=latest overrides the version part of the zip name.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-VERSION="${VERSION:-0.1.0}"
-APP=dist/NMUCompat.app
+VERSION="${VERSION:-0.0.0-dev}"
+BUNDLE_VERSION="${BUNDLE_VERSION:-${VERSION%%[-+]*}}"
+DIST=dist
+APP="$DIST/NMUCompat.app"
 
-swift build -c release --product NMUCompatApp
-BIN="$(swift build -c release --show-bin-path)/NMUCompatApp"
+ARCH_FLAGS=()
+if [[ "${UNIVERSAL:-0}" == "1" ]]; then
+    ARCH_FLAGS=(--arch arm64 --arch x86_64)
+fi
 
-rm -rf "$APP"
+swift build -c release "${ARCH_FLAGS[@]}" --product NMUCompatApp
+swift build -c release "${ARCH_FLAGS[@]}" --product nmucompat
+BIN_DIR="$(swift build -c release "${ARCH_FLAGS[@]}" --show-bin-path)"
+
+rm -rf "$APP" "$DIST/nmucompat"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN" "$APP/Contents/MacOS/NMUCompat"
+cp "$BIN_DIR/NMUCompatApp" "$APP/Contents/MacOS/NMUCompat"
+cp "$BIN_DIR/nmucompat" "$DIST/nmucompat"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -23,7 +38,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleIdentifier</key><string>com.github.2bbb.nmucompat</string>
   <key>CFBundleExecutable</key><string>NMUCompat</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>${VERSION}</string>
+  <key>CFBundleShortVersionString</key><string>${BUNDLE_VERSION}</string>
   <key>CFBundleVersion</key><string>${VERSION}</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHighResolutionCapable</key><true/>
@@ -34,4 +49,24 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 
 codesign --force --sign - "$APP"
-echo "built $APP"
+codesign --force --sign - "$DIST/nmucompat"
+
+lipo -info "$APP/Contents/MacOS/NMUCompat"
+lipo -info "$DIST/nmucompat"
+
+if [[ "${ZIP:-0}" == "1" ]]; then
+    SUFFIX=$([[ "${UNIVERSAL:-0}" == "1" ]] && echo universal || uname -m)
+    NAME="NMUCompat-${ZIP_LABEL:-$VERSION}-macos-${SUFFIX}"
+    STAGE="$DIST/$NAME"
+    rm -rf "$STAGE" "$DIST/$NAME.zip"
+    mkdir -p "$STAGE"
+    cp -R "$APP" "$STAGE/"
+    cp "$DIST/nmucompat" "$STAGE/"
+    cp README.md LICENSE "$STAGE/"
+    # ditto keeps the code signature and bundle metadata intact.
+    (cd "$DIST" && ditto -c -k --keepParent "$NAME" "$NAME.zip")
+    rm -rf "$STAGE"
+    echo "zip: $DIST/$NAME.zip"
+fi
+
+echo "built $APP and $DIST/nmucompat"
