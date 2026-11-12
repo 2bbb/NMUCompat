@@ -57,8 +57,18 @@ Download `NMUCompat-<version>-macos-universal.zip` from
 `main`). The zip contains `NMUCompat.app` and the `nmucompat` CLI (Apple Silicon + Intel,
 macOS 13+).
 
-Both the app and the CLI are signed with a Developer ID and notarized by Apple, so they open
-normally after download. Each zip has a matching `.sha256` file:
+Both the app and the CLI are signed with a Developer ID (ISHII 2BIT PROGRAM OFFICE) but are
+currently **not notarized**, so macOS blocks the first launch of a downloaded copy. Either:
+
+- open **System Settings → Privacy & Security** after the first launch attempt and click
+  **Open Anyway** (once for the app, once for the CLI), or
+- clear the quarantine flag after unzipping:
+
+  ```sh
+  xattr -dr com.apple.quarantine NMUCompat.app nmucompat
+  ```
+
+Each zip has a matching `.sha256` file:
 
 ```sh
 shasum -a 256 -c NMUCompat-<version>-macos-universal.zip.sha256
@@ -105,13 +115,15 @@ UNIVERSAL=1 ZIP=1 VERSION=1.0.0 ./scripts/bundle.sh   # universal zip
 - Push to `main` → CI, and the rolling **`latest`** pre-release is rebuilt
   (`NMUCompat-latest-macos-universal.zip`).
 - Push a tag `vX.Y.Z` → versioned release with `NMUCompat-X.Y.Z-macos-universal.zip`.
-- Release builds are signed with Developer ID (Hardened Runtime, secure timestamp), notarized
-  with `notarytool`, stapled, and the final zip is unpacked and re-verified (signature, team,
-  staple, Gatekeeper, architectures, SHA-256) before publishing. Any failed gate stops the release.
+- Release builds are signed with Developer ID (Hardened Runtime, secure timestamp) and the final
+  zip is unpacked and re-verified (signature, team, architectures, CLI launch, SHA-256) before
+  publishing. Any failed gate stops the release.
+- Notarization + stapling (and a Gatekeeper check) run automatically once the App Store
+  Connect **Team** API key secrets are present; until then it is skipped with a warning.
 
-Required repository secrets: `MACOS_CERTIFICATE_P12_BASE64`, `MACOS_CERTIFICATE_PASSWORD`,
-`APPLE_TEAM_ID`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID`, `APPLE_API_PRIVATE_KEY_P8_BASE64`
-(App Store Connect **Team** API key).
+Repository secrets: `MACOS_CERTIFICATE_P12_BASE64`, `MACOS_CERTIFICATE_PASSWORD`,
+`APPLE_TEAM_ID` (required); `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID`,
+`APPLE_API_PRIVATE_KEY_P8_BASE64` (optional, enables notarization).
 
 ## License
 

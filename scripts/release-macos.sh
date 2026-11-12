@@ -4,6 +4,7 @@
 #   release-macos.sh install-cert   MACOS_CERTIFICATE_P12_BASE64, MACOS_CERTIFICATE_PASSWORD, APPLE_TEAM_ID
 #   release-macos.sh verify-signed  APPLE_TEAM_ID
 #   release-macos.sh notarize       APPLE_API_KEY_ID, APPLE_API_ISSUER_ID, APPLE_API_PRIVATE_KEY_P8_BASE64
+#                                   (optional: skipped with a warning when unset; sets NOTARIZED=0/1)
 #   release-macos.sh verify-zip <zip>  APPLE_TEAM_ID
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -59,7 +60,14 @@ verify-signed)
     check_team "$CLI"
     ;;
 notarize)
-    require_env APPLE_API_KEY_ID APPLE_API_ISSUER_ID APPLE_API_PRIVATE_KEY_P8_BASE64 RUNNER_TEMP
+    # Optional: without the App Store Connect API key secrets the release is Developer ID signed
+    # but NOT notarized. Later steps read NOTARIZED from GITHUB_ENV.
+    if [[ -z "${APPLE_API_KEY_ID:-}" || -z "${APPLE_API_ISSUER_ID:-}" || -z "${APPLE_API_PRIVATE_KEY_P8_BASE64:-}" ]]; then
+        echo "::warning::Notarization skipped: APPLE_API_* secrets not set. Publishing a Developer ID signed, un-notarized build."
+        if [[ -n "${GITHUB_ENV:-}" ]]; then echo "NOTARIZED=0" >> "$GITHUB_ENV"; fi
+        exit 0
+    fi
+    require_env RUNNER_TEMP
     key="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
     printf '%s' "$APPLE_API_PRIVATE_KEY_P8_BASE64" | base64 --decode > "$key"
     chmod 600 "$key"
@@ -81,6 +89,7 @@ notarize)
     # Only bundles can carry a stapled ticket; the bare CLI is checked online by Gatekeeper.
     xcrun stapler staple "$APP"
     xcrun stapler validate "$APP"
+    if [[ -n "${GITHUB_ENV:-}" ]]; then echo "NOTARIZED=1" >> "$GITHUB_ENV"; fi
     ;;
 verify-zip)
     require_env APPLE_TEAM_ID RUNNER_TEMP
@@ -92,8 +101,12 @@ verify-zip)
     codesign --verify --strict --verbose=2 "$root/nmucompat"
     check_team "$root/NMUCompat.app"
     check_team "$root/nmucompat"
-    xcrun stapler validate "$root/NMUCompat.app"
-    spctl --assess --type execute --verbose=4 "$root/NMUCompat.app"
+    if [[ "${NOTARIZED:-0}" == "1" ]]; then
+        xcrun stapler validate "$root/NMUCompat.app"
+        spctl --assess --type execute --verbose=4 "$root/NMUCompat.app"
+    else
+        echo "not notarized: skipping stapler/Gatekeeper assessment"
+    fi
     lipo -archs "$root/NMUCompat.app/Contents/MacOS/NMUCompat" | grep -q arm64
     lipo -archs "$root/NMUCompat.app/Contents/MacOS/NMUCompat" | grep -q x86_64
     "$root/nmucompat" --help >/dev/null

@@ -3,8 +3,9 @@ name: Release
 # main  → rolling "latest" pre-release (NMUCompat-latest-macos-universal.zip)
 # v*    → versioned release        (NMUCompat-<version>-macos-universal.zip)
 #
-# Both channels are Developer ID signed, notarized and stapled. Any failed gate stops the job
-# before publication. Runs only on pushes to this repository (never on pull requests), so
+# Both channels are Developer ID signed. They are also notarized and stapled when the
+# APPLE_API_* secrets are set; otherwise notarization is skipped with a warning and the release
+# notes say so. Any failed gate stops the job before publication. Runs only on pushes to this repository (never on pull requests), so
 # release secrets are not exposed to untrusted code.
 on:
   push:
@@ -68,7 +69,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: ./scripts/release-macos.sh verify-signed
 
-      - name: Notarize and staple
+      - name: Notarize and staple (if API key secrets are set)
         env:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
@@ -93,11 +94,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ZIP: dist/NMUCompat-${{ steps.v.outputs.zip_label }}-macos-universal.zip
         run: |
+          if [[ "${NOTARIZED:-0}" == "1" ]]; then
+            note="Signed with Developer ID and notarized by Apple."
+          else
+            note="Signed with Developer ID, **not notarized**. On first launch allow it in System Settings → Privacy & Security (\"Open Anyway\"), or run: \`xattr -dr com.apple.quarantine NMUCompat.app nmucompat\`"
+          fi
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "$ZIP" "$ZIP.sha256" --clobber
           else
             gh release create "$GITHUB_REF_NAME" "$ZIP" "$ZIP.sha256" \
-              --verify-tag --title "NMUCompat $GITHUB_REF_NAME" --generate-notes
+              --verify-tag --title "NMUCompat $GITHUB_REF_NAME" --notes "$note" --generate-notes
           fi
 
       - name: Publish rolling "latest" pre-release
@@ -109,7 +115,8 @@ jobs:
         run: |
           git tag -f latest "$GITHUB_SHA"
           git push -f origin refs/tags/latest
-          notes="Automated build of main at ${SHA} (Developer ID signed and notarized). Untested pre-release — use a versioned release for production."
+          if [[ "${NOTARIZED:-0}" == "1" ]]; then sig="Developer ID signed and notarized"; else sig="Developer ID signed, not notarized — see README for first launch"; fi
+          notes="Automated build of main at ${SHA} (${sig}). Untested pre-release — use a versioned release for production."
           if gh release view latest >/dev/null 2>&1; then
             gh release upload latest "$ZIP" "$ZIP.sha256" --clobber
             gh release edit latest --prerelease --title "Latest (main @ ${SHA})" --notes "$notes"
