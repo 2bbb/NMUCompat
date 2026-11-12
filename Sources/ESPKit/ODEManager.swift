@@ -41,36 +41,45 @@ public final class ODEManager {
     }
 
     /// NMU "Save Config": ESCP, then (only if IP changed) wait 444 ms and ESZZ; then re-poll to verify.
+    ///
+    /// Observed on ODE Mk1 fw 0x16: the node restarts by itself after any accepted ESCP and is
+    /// silent for ~1-2 s, so verification polls repeatedly until `verifyTimeout` runs out.
     public func apply(_ newConfig: ODEConfig, to device: ODEDevice,
-                      verifyTimeout: TimeInterval = 2.0, rebootWait: TimeInterval = 4.0) throws -> ApplyResult {
+                      verifyTimeout: TimeInterval = 8.0) throws -> ApplyResult {
         let packet = try PacketCodec.setConfig(mac: device.mac, firmware: device.firmware,
                                                config: newConfig, nodeType: device.nodeType)
-        try socket.broadcast(packet)
-        let ipChanged = newConfig.ip != device.config.ip
-        if ipChanged {
+        try socket.broadcastCommand(packet)
+        if newConfig.ip != device.config.ip {
             Thread.sleep(forTimeInterval: 0.444)
-            try socket.broadcast(PacketCodec.reset(mac: device.mac))
-            Thread.sleep(forTimeInterval: rebootWait)
-        } else {
-            Thread.sleep(forTimeInterval: 0.3)
+            try socket.broadcastCommand(PacketCodec.reset(mac: device.mac))
         }
-        guard let after = try findODE(device.mac, timeout: verifyTimeout) else { return .noReply }
+        Thread.sleep(forTimeInterval: 1.0)
+
         var expected = newConfig
-        if !device.usesExtendedConfig {
-            expected.refreshCode = after.config.refreshCode
-            expected.optionB = after.config.optionB
-            expected.optionC = after.config.optionC
+        var last: ODEDevice?
+        let deadline = Date().addingTimeInterval(verifyTimeout)
+        while Date() < deadline {
+            if let after = try findODE(device.mac, timeout: 1.0) {
+                if !device.usesExtendedConfig {
+                    expected.refreshCode = after.config.refreshCode
+                    expected.optionB = after.config.optionB
+                    expected.optionC = after.config.optionC
+                }
+                if after.config == expected { return .verified(after) }
+                last = after
+            }
         }
-        return after.config == expected ? .verified(after) : .mismatch(expected: expected, actual: after)
+        if let last { return .mismatch(expected: expected, actual: last) }
+        return .noReply
     }
 
     public func reset(_ mac: MACAddress) throws {
-        try socket.broadcast(PacketCodec.reset(mac: mac))
+        try socket.broadcastCommand(PacketCodec.reset(mac: mac))
     }
 
     public func factoryReset(_ mac: MACAddress) throws {
-        try socket.broadcast(PacketCodec.factoryConfig(mac: mac))
+        try socket.broadcastCommand(PacketCodec.factoryConfig(mac: mac))
         Thread.sleep(forTimeInterval: 0.444)
-        try socket.broadcast(PacketCodec.reset(mac: mac))
+        try socket.broadcastCommand(PacketCodec.reset(mac: mac))
     }
 }

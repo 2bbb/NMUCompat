@@ -175,7 +175,7 @@ func run() throws {
         if args.flags.contains("--dry-run") { print("\n--dry-run: nothing sent"); return }
         if c == d.config { print("\nnothing to change"); return }
 
-        switch try m.apply(c, to: d, verifyTimeout: args.timeout) {
+        switch try m.apply(c, to: d) {
         case .verified(let v): print("\nOK — verified:\n\(describe(v))")
         case .noReply: throw CLIError("sent, but node did not answer the verification poll")
         case .mismatch(_, let a): throw CLIError("sent, but node reports a different config:\n\(describe(a))\n\(hex(a.raw))")

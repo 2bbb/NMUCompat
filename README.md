@@ -6,8 +6,9 @@ universe and port direction — the same packets NMU 1.85 sends.
 
 Protocol details and their provenance: [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
-> Status: packet formats are reverse-engineered from NMU 1.85 and unit-tested, but
-> **not yet verified on hardware**. Try `set --dry-run` and a single sacrificial unit first.
+> Status: discovery and name changes are verified on a real ODE Mk1 (fw 0x16). IP,
+> protocol and universe changes use the same packet but have not been exercised on hardware
+> yet — try them on one unit first.
 
 ## GUI
 

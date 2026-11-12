@@ -3,7 +3,8 @@
 Derived from static analysis of `NMU.app` 1.85 (x86_64 Mach-O, symbols intact) and
 the public ESP v1.4 spec. Discovery and the poll-reply layout are **verified on a real
 ODE Mk1** (MAC 00:50:C2:07:77:B1, firmware 0x16, Art-Net 1.06 in ArtPollReply).
-Writes (`ESCP`, `ESZZ`) are not yet verified — items marked _(unverified)_.
+`ESCP` (name change) is also **verified on hardware**; IP change and `ESZZ` alone are not yet
+— items marked _(unverified)_.
 
 Relevant NMU functions: `ESPNet::Poll`, `ESPNet::ODEPoll`, `ESPNet::RecvData`,
 `ESPNet::add_ode_to_list(…, ODEPollReplyPacket*)`, `ESPNet::ODE_SendConfig`,
@@ -16,7 +17,12 @@ Relevant NMU functions: `ESPNet::Poll`, `ESPNet::ODEPoll`, `ESPNet::RecvData`,
 - Node → host: the ODE **broadcasts its replies to `255.255.255.255:3330`** (0x0D02),
   regardless of the poll's source port. A client listening only on 3333 sees nothing.
   (Verified by capture; matches NMU's second socket bound to `0.0.0.0:3330`.)
-- NMU sends every packet to `255.255.255.255:3333`. Nodes are addressed by **MAC**, not IP, so this works even when
+- NMU binds two sockets (`:3330` and `:3333`). Polls go `:3333→bcast:3333` and
+  `:3330→bcast:3330`. Commands (`ESCP`, `ESZZ`) go `:3330→bcast:3330`, `:3330→bcast:3333`
+  and `:3333→bcast:3333`.
+- **The ODE only acts on `ESCP` sent to port 3330.** Tested one path at a time on fw 0x16:
+  `:3330→:3330` applied; `:3330→:3333` and `:3333→:3333` were ignored. Polls to :3333 are
+  answered. Nodes are addressed by **MAC**, not IP, so this works even when
   the node's IP is on another subnet (factory IP is `10.a.b.c`).
 - Multi-byte integers are big-endian.
 
@@ -106,6 +112,10 @@ byte values, matching the manual's "10.a.b.c from the serial"), name `"ODE Facto
 | 0 | 4 | `"ESZZ"` |
 | 4 | 6 | target MAC |
 
+Observed on fw 0x16: after an accepted `ESCP` the ODE **restarts by itself** (even without
+`ESZZ`) and does not answer polls for ~1–2 s; the new settings are then reported. No `ESAP`
+is sent in response to `ESCP`.
+
 NMU sequence on "Save Config":
 
 1. If the IP **changed**: `ESCP` → sleep 444 ms → `ESZZ` (node reboots with new IP).
@@ -114,6 +124,6 @@ NMU sequence on "Save Config":
 
 ## Open questions _(unverified)_
 
-- Whether the ODE answers `ESCP` with `ESAP`.
 - Exact meaning of option B/C (`No Input Behavior`, `HTP Merging` radio boxes).
 - Whether Mk1 rev A (old firmware) also reports node type `0x000B`.
+- IP change path (`ESCP` + `ESZZ`) on hardware.

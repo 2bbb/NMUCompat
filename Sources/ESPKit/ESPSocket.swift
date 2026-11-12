@@ -118,17 +118,30 @@ public final class ESPSocket {
         try send(packet, to: IPv4Address([255, 255, 255, 255]))
     }
 
-    public func send(_ packet: [UInt8], to ip: IPv4Address) throws {
+    public func send(_ packet: [UInt8], to ip: IPv4Address, port: UInt16 = ESP.port) throws {
+        try Self.sendto(tx, packet, ip, port)
+    }
+
+    /// Sends exactly as NMU does for commands (ESCP, ESZZ): from :3330 to :3330 and :3333, and
+    /// from :3333 to :3333. A live ODE Mk1 only acts on ESCP sent to port 3330.
+    public func broadcastCommand(_ packet: [UInt8]) throws {
+        let bcast = IPv4Address([255, 255, 255, 255])
+        try Self.sendto(rx, packet, bcast, ESP.replyPort)
+        try Self.sendto(rx, packet, bcast, ESP.port)
+        try Self.sendto(tx, packet, bcast, ESP.port)
+    }
+
+    static func sendto(_ fd: Int32, _ packet: [UInt8], _ ip: IPv4Address, _ port: UInt16) throws {
         var addr = sockaddr_in()
         addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = ESP.port.bigEndian
+        addr.sin_port = port.bigEndian
         let b = ip.bytes
         addr.sin_addr.s_addr = (UInt32(b[0]) << 24 | UInt32(b[1]) << 16 | UInt32(b[2]) << 8 | UInt32(b[3])).bigEndian
         let n = packet.withUnsafeBytes { buf in
             withUnsafePointer(to: &addr) {
                 $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    sendto(tx, buf.baseAddress, buf.count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+                    Darwin.sendto(fd, buf.baseAddress, buf.count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
                 }
             }
         }
