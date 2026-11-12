@@ -6,7 +6,7 @@ nmucompat — ENTTEC ODE Mk1 configuration over ESP (NMU-compatible)
 
 USAGE
   nmucompat interfaces
-  nmucompat discover [-i IF] [-t SEC] [--raw]
+  nmucompat discover [-i IF] [-t SEC] [--raw]   (all interfaces when -i is omitted)
   nmucompat show MAC [-i IF]
   nmucompat set MAC [-i IF] [--ip A.B.C.D] [--name NAME]
                     [--protocol esp|artnet] [--direction output|input|disabled]
@@ -105,10 +105,12 @@ func run() throws {
         NetworkInterface.all().forEach { print($0) }
 
     case "discover":
-        let m = try ODEManager(interfaceName: args.options["-i"])
-        let nodes = try m.discover(timeout: args.timeout)
-        if nodes.isEmpty { print("no ESP nodes answered"); return }
-        for n in nodes {
+        let scanner = try MultiInterfaceScanner(interfaceNames: args.options["-i"].map { [$0] })
+        let hits = scanner.discover(timeout: args.timeout)
+        if hits.isEmpty { print("no ESP nodes answered"); return }
+        for h in hits {
+            let n = h.node
+            print("Interface  \(h.interfaceName)")
             if let d = n.ode {
                 print(describe(d))
             } else {

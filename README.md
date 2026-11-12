@@ -9,6 +9,17 @@ Protocol details and their provenance: [docs/PROTOCOL.md](docs/PROTOCOL.md).
 > Status: packet formats are reverse-engineered from NMU 1.85 and unit-tested, but
 > **not yet verified on hardware**. Try `set --dry-run` and a single sacrificial unit first.
 
+## GUI
+
+```sh
+./scripts/bundle.sh        # → dist/NMUCompat.app (ad-hoc signed)
+open dist/NMUCompat.app
+```
+
+Scans all interfaces by default and remembers which NIC each ODE answered on. Select an ODE,
+edit name / IP / protocol / direction / universe (Art-Net Sub-Net + Universe or Port-Address),
+check the ESCP packet preview, then Apply. IP changes ask for confirmation and restart the node.
+
 ## Build
 
 ```sh
@@ -20,7 +31,7 @@ swift build -c release
 
 ```sh
 nmucompat interfaces                       # pick the NIC the ODEs are on
-nmucompat discover -i en8                  # list ODEs (and other ESP nodes)
+nmucompat discover                         # list ODEs on all interfaces (or -i en8)
 nmucompat show 00:50:C2:12:34:56 -i en8    # details + raw poll reply hex
 nmucompat set 00:50:C2:12:34:56 -i en8 --ip 192.168.1.50 --name "Truss 1" \
           --protocol artnet --artnet 0.3 --direction output --dry-run

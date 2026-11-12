@@ -78,7 +78,7 @@ public final class ESPSocket {
         }
     }
 
-    private static func makeSocket(port: UInt16, interface: NetworkInterface?) throws -> Int32 {
+    static func makeSocket(port: UInt16, interface: NetworkInterface?) throws -> Int32 {
         let fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
         guard fd >= 0 else { throw ESPSocketError.system("socket", errno) }
 

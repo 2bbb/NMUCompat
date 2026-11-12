@@ -4,3 +4,4 @@ DerivedData/
 .DS_Store
 # vendor binaries are not redistributed
 vendor/
+dist/
