@@ -57,16 +57,9 @@ Download `NMUCompat-<version>-macos-universal.zip` from
 `main`). The zip contains `NMUCompat.app` and the `nmucompat` CLI (Apple Silicon + Intel,
 macOS 13+).
 
-Both the app and the CLI are signed with a Developer ID (ISHII 2BIT PROGRAM OFFICE) but are
-currently **not notarized**, so macOS blocks the first launch of a downloaded copy. Either:
-
-- open **System Settings → Privacy & Security** after the first launch attempt and click
-  **Open Anyway** (once for the app, once for the CLI), or
-- clear the quarantine flag after unzipping:
-
-  ```sh
-  xattr -dr com.apple.quarantine NMUCompat.app nmucompat
-  ```
+Both the app and the CLI are signed with a Developer ID (ISHII 2BIT PROGRAM OFFICE) and
+notarized by Apple (v0.1.2 and later), so they open normally after download. v0.1.0–v0.1.1
+were not notarized.
 
 Each zip has a matching `.sha256` file:
 
@@ -118,8 +111,9 @@ UNIVERSAL=1 ZIP=1 VERSION=1.0.0 ./scripts/bundle.sh   # universal zip
 - Release builds are signed with Developer ID (Hardened Runtime, secure timestamp) and the final
   zip is unpacked and re-verified (signature, team, architectures, CLI launch, SHA-256) before
   publishing. Any failed gate stops the release.
-- Notarization + stapling (and a Gatekeeper check) run automatically once the App Store
-  Connect **Team** API key secrets are present; until then it is skipped with a warning.
+- Notarization with `notarytool`, stapling and a Gatekeeper check run when the App Store
+  Connect **Team** API key secrets are present (they are for this repository); without them
+  the step is skipped with a warning and the release notes say the build is not notarized.
 
 Repository secrets: `MACOS_CERTIFICATE_P12_BASE64`, `MACOS_CERTIFICATE_PASSWORD`,
 `APPLE_TEAM_ID` (required); `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID`,
