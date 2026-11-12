@@ -176,7 +176,12 @@ func run() throws {
         if c == d.config { print("\nnothing to change"); return }
 
         switch try m.apply(c, to: d) {
-        case .verified(let v): print("\nOK — verified:\n\(describe(v))")
+        case .verified(let v):
+            print("\nOK — verified:\n\(describe(v))")
+            if c.ip != d.config.ip {
+                print("\nNote: ODE Mk1 keeps answering ARP/ping on the old IP \(d.config.ip) after a soft reset.")
+                print("Power-cycle the ODE before reusing that address for another device.")
+            }
         case .noReply: throw CLIError("sent, but node did not answer the verification poll")
         case .mismatch(_, let a): throw CLIError("sent, but node reports a different config:\n\(describe(a))\n\(hex(a.raw))")
         }

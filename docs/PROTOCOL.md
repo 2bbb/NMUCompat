@@ -3,9 +3,9 @@
 Derived from static analysis of `NMU.app` 1.85 (x86_64 Mach-O, symbols intact) and
 the public ESP v1.4 spec. Discovery and the poll-reply layout are **verified on a real
 ODE Mk1** (MAC 00:50:C2:07:77:B1, firmware 0x16, Art-Net 1.06 in ArtPollReply).
-`ESCP` name and Art-Net universe changes are also **verified on hardware** (universe 0.0→0.1→0.0,
-cross-checked against the node's ArtPollReply `SwOut`); IP change and `ESZZ` alone are not yet
-— items marked _(unverified)_.
+`ESCP` name, Art-Net universe and IP changes are also **verified on hardware** (universe
+0.0→0.1→0.0 cross-checked against ArtPollReply `SwOut`; IP 10.0.1.102→10.0.1.250→10.0.1.102
+via `ESCP` + `ESZZ`). Items marked _(unverified)_ remain open.
 
 Relevant NMU functions: `ESPNet::Poll`, `ESPNet::ODEPoll`, `ESPNet::RecvData`,
 `ESPNet::add_ode_to_list(…, ODEPollReplyPacket*)`, `ESPNet::ODE_SendConfig`,
@@ -123,8 +123,13 @@ NMU sequence on "Save Config":
 2. Otherwise: `ESCP` only.
 3. Re-poll and compare fields to verify (`Config_Dialog::CompareParams`).
 
+**Firmware quirk (fw 0x16):** after an IP change the ODE reports only the new IP in ESPR and
+ArtPollReply, but its ARP/ICMP layer keeps answering on the **old IP as well** (only those two
+addresses; unrelated addresses stay silent). During the restart window either address may be
+briefly silent. Power-cycle the node before reusing the old address elsewhere.
+
 ## Open questions _(unverified)_
 
 - Exact meaning of option B/C (`No Input Behavior`, `HTP Merging` radio boxes).
 - Whether Mk1 rev A (old firmware) also reports node type `0x000B`.
-- IP change path (`ESCP` + `ESZZ`) on hardware.
+- `ESZZ` on its own (without a preceding `ESCP`).

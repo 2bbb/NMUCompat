@@ -6,9 +6,9 @@ universe and port direction — the same packets NMU 1.85 sends.
 
 Protocol details and their provenance: [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
-> Status: discovery, name and Art-Net universe changes are verified on a real ODE Mk1
-> (fw 0x16). IP, protocol and direction changes use the same packet but have not been
-> exercised on hardware yet — try them on one unit first.
+> Status: discovery, name, Art-Net universe and IP changes are verified on a real ODE Mk1
+> (fw 0x16). Protocol and direction use the same packet but have not been exercised yet.
+> After an IP change the ODE still answers ARP/ping on its old address until power-cycled.
 
 ## GUI
 

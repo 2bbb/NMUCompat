@@ -214,6 +214,9 @@ final class AppModel: ObservableObject {
         case .verified(let after):
             replace(after)
             append(.success, "\(after.mac): configuration verified")
+            if config.ip != device.config.ip {
+                append(.info, "\(after.mac): ODE still answers ARP/ping on old IP \(device.config.ip) until power-cycled")
+            }
         case .mismatch(_, let actual):
             replace(actual)
             append(.error, "\(actual.mac): node reports different settings after write")

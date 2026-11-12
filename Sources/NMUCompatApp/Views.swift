@@ -253,7 +253,7 @@ struct DeviceEditor: View {
         .confirmationDialog("Change IP address?", isPresented: $confirmIPChange) {
             Button("Change IP and restart ODE") { Task { await model.applyDraft() } }
         } message: {
-            Text("The ODE will restart with \(model.draft?.ip ?? ""). Make sure that address is free on the network.")
+            Text("The ODE will restart with \(model.draft?.ip ?? ""). Make sure that address is free on the network.\n\nODE Mk1 keeps answering ARP/ping on its old address until it is power-cycled, so power-cycle it before reusing the old address.")
         }
         .confirmationDialog("Factory reset this ODE?", isPresented: $confirmFactory) {
             Button("Factory Reset", role: .destructive) { Task { await model.factoryResetSelected() } }
