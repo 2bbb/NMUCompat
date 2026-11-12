@@ -1,0 +1,6 @@
+.build/
+*.xcodeproj/xcuserdata/
+DerivedData/
+.DS_Store
+# vendor binaries are not redistributed
+vendor/
